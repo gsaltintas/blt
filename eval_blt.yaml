@@ -1,0 +1,65 @@
+# XFORMERS_FORCE_DISABLE_TRITON=1 python -m bytelatent.eval --tasks="tokenizer_robustness_mathematical_scientific_notation" --ckpt_dir=$SCRATCH/blt
+# torchrun --nproc-per-node 1 -m bytelatent.eval config=eval_blt.yaml
+## Run with the following command:
+# python -m bytelatent.eval config=eval_blt.yaml
+ckpt_dir: /scratch/gsa/blt/blt_1b
+entropy_ckpt_dir: /scratch/gsa/blt/entropy_model
+dump_dir: /scratch/gsa/blt_dump
+
+run_ppl: False
+run_tasks: True
+
+harness:
+  tasks:
+    # tokenizer_robustness_mathematical_scientific_notation
+    - tokenizer_robustness_completion_math
+    - tokenizer_robustness_completion_english
+    - tokenizer_robustness_completion_stem
+    - tokenizer_robustness_completion_turkish
+    - tokenizer_robustness_completion_farsi
+    - tokenizer_robustness_completion_italian
+    - tokenizer_robustness_completion_chinese
+    - tokenizer_robustness_completion_general
+
+# model:
+#   patch_in_forward: false
+generator:
+  compile_prefilling: false
+
+validation:
+  batch_size: 1
+# data:
+#   patcher:
+#     realtime_patching: true
+
+# metric_log_dir: str | None = None
+
+# prompts: list[str] | None = None
+# generator: PackedCausalTransformerGeneratorArgs = (
+#     PackedCausalTransformerGeneratorArgs()
+# )
+
+# harness: LMHarnessArgs | None = LMHarnessArgs()
+# validation: ValidationArgs | None = ValidationArgs()
+
+# global_step: int | None = None  # for in-training evaluation
+# s3_profile: str | None = None
+# consolidate_if_needed: bool = False
+# consolidate_folder: str = CONSOLIDATE_FOLDER
+
+
+
+# train:
+  # train_entropy_model: true
+  # model: null
+  # entropy_model:
+  #   dim: 768
+  #   n_layers: 14
+  #   n_heads: 12
+  #   max_seqlen: 8192
+  #   # vocab_size: -1
+  #   vocab_size: 260
+  #   ffn_dim_multiplier: 1.0
+  #   sliding_window: 512
+  #   attn_bias_type: "local_block_causal"
+  #   attn_impl: "xformers"
