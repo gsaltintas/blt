@@ -1,0 +1,13 @@
+## first download the data
+# hf download toklens/fw_edu_tokenizer_training_data --local-dir /scratch/gsa/data/toklens/fineweb_edu_12gb --repo-type dataset
+
+data:
+  root_dir: /scratch/gsa/data/toklens/
+  sources:
+    dclm_baseline_1.0_40bt: 0
+    fineweb_edu_12gb: 1.
+
+
+logging:
+  wandb:
+    project: BLT-DataOptimal-FineWeb-12GB

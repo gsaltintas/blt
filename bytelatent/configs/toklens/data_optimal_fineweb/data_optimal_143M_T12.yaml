@@ -1,0 +1,19 @@
+# python -m bytelatent.stool_ccdb launcher=sbatch ngpu=1 ncpu=1 mem=128G time=800 nodes=1 gpu_type=l40s script=bytelatent.train config=[bytelatent/configs/toklens/data_optimal_base.yaml,bytelatent/configs/toklens/data_optimal_143M_T2.yaml]
+
+dump_dir: /fsx/craffel/lingua_logs/fineweb_data_optimal_143M_tok_T12
+name: "data_optimal_143M_tok_T12"  # change T value per run: T2, T3, T4, T5, T6, T8
+
+
+model:
+  # --- byte vocabulary (fixed, not swept) ---
+  vocab_size: 260
+  patch_size: 12     # controls T directly; sweep: 2, 3, 4, 5, 6, 8
+  patching_mode: static
+
+data:
+  patcher_args:
+    patching_mode: static
+    patch_size: 12
+
+checkpoint:
+  path: /fsx/craffel/lingua_logs/fineweb_data_optimal_143M_tok_T12/checkpoints
