@@ -150,9 +150,16 @@ def validate_train_args(args: TrainArgs, output_size: int):
 
     if args.data.root_dir is not None:
         data_fs = get_fs(args.data.root_dir, s3_profile=args.data.s3_profile)
+        to_pop = []
         for source in args.data.sources:
+            if args.data.sources[source] == 0:
+                to_pop.append(source)
+                continue
             data_path = os.path.join(args.data.root_dir, source)
             assert data_fs.exists(data_path), f"{data_path} doesn't exist"
+        for to_pop_ in to_pop:
+            args.data.sources.pop(to_pop_)
+            logging.info(f"Removed source {to_pop_} from data sources since it doesn't exist in {args.data.root_dir}")
 
     args.distributed.configure_world()
 
