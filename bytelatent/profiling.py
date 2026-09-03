@@ -7,7 +7,9 @@ import os
 from pathlib import Path
 
 import torch.distributed
-import wandb
+
+# import wandb
+import trackio as wandb
 import xformers.profiler
 from pydantic import BaseModel
 from torch.profiler.profiler import profile

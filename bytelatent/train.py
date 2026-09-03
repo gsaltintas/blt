@@ -18,7 +18,9 @@ import torch
 import torch.distributed
 import torch.nn.functional
 import torch.nn.functional as F
-import wandb
+
+# import wandb
+import trackio as wandb
 import xformers.profiler
 from torch.distributed._tensor import DTensor
 from torch.distributed.checkpoint.stateful import Stateful

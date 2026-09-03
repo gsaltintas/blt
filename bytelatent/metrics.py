@@ -11,7 +11,9 @@ from typing import Any, Union
 import fsspec
 import torch
 import torch.nn as nn
-import wandb
+
+# import wandb
+import trackio as wandb
 from pydantic import BaseModel, ConfigDict
 
 from bytelatent.distributed import get_is_master
@@ -198,7 +200,8 @@ def upload_train_to_wandb(
     import json
     from pathlib import Path
 
-    import wandb
+    # import wandb
+    import trackio as wandb
     from omegaconf import OmegaConf
 
     cfg = OmegaConf.load(Path(ckpt_dir) / "config.yaml")

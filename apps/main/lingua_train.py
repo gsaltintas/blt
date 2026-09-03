@@ -14,7 +14,9 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.distributed
-import wandb
+
+# import wandb
+import trackio as wandb
 import xformers.profiler
 from lingua.args import dataclass_from_dict, dump_config, flatten_dict
 from lingua.data import (
