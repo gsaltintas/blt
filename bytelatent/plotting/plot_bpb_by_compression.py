@@ -13,21 +13,36 @@ Reads, for each run under /scratch/gsa/train/fineweb_data_optimal_143M_tok_{T1,T
 Different compression ratios pack a different number of raw bytes into the
 same token/step budget, so plotting against cumulative bytes consumed (rather
 than step) puts runs on equal footing in terms of how much raw text they've
-actually seen. Cumulative FLOPs (from speed/FLOPS * speed/curr_iter_time,
-integrated over steps) normalizes by compute spent instead.
+actually seen.
+
+Cumulative FLOPs uses a BLT-aware estimate (bytelatent/plotting/blt_flops.py)
+rather than the "speed/FLOPS" field logged in metrics.jsonl: that logged value
+applies a generic dense-transformer formula to the whole model using the raw
+byte seq_len, which doesn't account for the global/latent transformer running
+on n_bytes/patch_size patches instead of n_bytes -- so it barely moves across
+compression ratios even though the global transformer's real per-step cost
+should shrink roughly linearly with the patch size. See blt_flops.py's module
+docstring for the full explanation. Since patch size is static within a run,
+FLOPs/step is constant, so cumulative FLOPs is just flops_per_step * step.
 
 Saves three figures to results/:
   - bpb_vs_step.pdf   (x-axis: training step)
   - bpb_vs_bytes.pdf  (x-axis: cumulative bytes consumed)
-  - bpb_vs_flops.pdf  (x-axis: cumulative FLOPs)
+  - bpb_vs_flops.pdf  (x-axis: cumulative FLOPs, BLT-aware estimate)
 
 Usage:
-    python bytelatent/plotting/plot_bpb_by_compression.py
+python bytelatent/plotting/plot_bpb_by_compression.py
 """
 import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+
+from bytelatent.plotting.blt_flops import (
+    build_meta_model,
+    corrected_flops_per_step,
+    load_model_args,
+)
 
 TRAIN_DIR = Path("/scratch/gsa/train")
 RUN_NAME_TEMPLATE = "fineweb_data_optimal_143M_tok_{}"
@@ -35,17 +50,27 @@ COMPRESSION_RATIOS = ["T1", "T2", "T4", "T6", "T8", "T12", "T18"]
 STEP_INTERVAL = 20_000
 TRAIN_FIELD = "bpb/interval_across_gpus"
 BYTES_FIELD = "n_bytes/interval_across_gpus"
-FLOPS_RATE_FIELD = "speed/FLOPS"
-ITER_TIME_FIELD = "speed/curr_iter_time"
 EVAL_TASK = "flores_plus_eng_Latn"
 EVAL_FIELD = "bits_per_byte,none"
 RESULTS_DIR = Path("results")
 
+CONFIG_DIR = Path("bytelatent/configs/toklens/data_optimal_fineweb")
+BASE_CONFIG = CONFIG_DIR / "data_optimal_base_fineweb.yaml"
+CONFIG_TEMPLATE = "data_optimal_143M_{}.yaml"
+
+
+def flops_per_step_for_ratio(ratio: str, n_bytes_per_step: int) -> float:
+    """BLT-aware FLOPs/step for a compression ratio's config, at the given
+    (observed) raw bytes processed per step."""
+    model_args = load_model_args([str(BASE_CONFIG), str(CONFIG_DIR / CONFIG_TEMPLATE.format(ratio))])
+    model = build_meta_model(model_args)
+    return corrected_flops_per_step(model_args, model, n_bytes_per_step)["flops_total"]
+
 
 def load_metrics(path: Path) -> list[dict]:
-    """Load metrics rows, sorted by step, each annotated with running
-    cumulative totals under "_cum_bytes" and "_cum_flops"."""
-    required = {TRAIN_FIELD, BYTES_FIELD, FLOPS_RATE_FIELD, ITER_TIME_FIELD}
+    """Load metrics rows, sorted by step, each annotated with a running
+    cumulative byte count under the "_cum_bytes" key."""
+    required = {TRAIN_FIELD, BYTES_FIELD}
     rows = []
     with open(path) as f:
         for line in f:
@@ -61,18 +86,9 @@ def load_metrics(path: Path) -> list[dict]:
     rows.sort(key=lambda r: r["global_step"])
 
     cum_bytes = 0.0
-    cum_flops = 0.0
-    prev_step = 0
     for row in rows:
         cum_bytes += row[BYTES_FIELD]
-        # FLOPS is an instantaneous rate (flops/sec); multiplying by the
-        # per-step time and the number of steps since the last log gives the
-        # FLOPs spent over that interval.
-        step_delta = row["global_step"] - prev_step
-        cum_flops += row[FLOPS_RATE_FIELD] * row[ITER_TIME_FIELD] * step_delta
-        prev_step = row["global_step"]
         row["_cum_bytes"] = cum_bytes
-        row["_cum_flops"] = cum_flops
     return rows
 
 
@@ -111,10 +127,16 @@ def collect_run_data(ratio: str) -> dict:
     max_step = max(r["global_step"] for r in rows)
     checkpoint_steps = list(range(0, max_step + 1, STEP_INTERVAL))
 
+    # Bytes/step is constant within a run (static patching, fixed batch/seq_len),
+    # so derive it from the observed data rather than re-deriving batch_size *
+    # seq_len * world_size from config, and use it to get an exact FLOPs/step.
+    bytes_per_step = rows[-1]["_cum_bytes"] / rows[-1]["global_step"]
+    flops_per_step = flops_per_step_for_ratio(ratio, round(bytes_per_step))
+
     train_rows = [nearest_row(rows, s) for s in checkpoint_steps]
     train_steps = [r["global_step"] for r in train_rows]
     train_bytes = [r["_cum_bytes"] for r in train_rows]
-    train_flops = [r["_cum_flops"] for r in train_rows]
+    train_flops = [s * flops_per_step for s in train_steps]
     train_bpb = [r[TRAIN_FIELD] for r in train_rows]
 
     eval_bpb_by_step = load_eval_bpb_by_step(run_dir / "evals")
@@ -122,7 +144,7 @@ def collect_run_data(ratio: str) -> dict:
     eval_bpb = [eval_bpb_by_step[s] for s in eval_steps]
     eval_rows = [nearest_row(rows, s) for s in eval_steps]
     eval_bytes = [r["_cum_bytes"] for r in eval_rows]
-    eval_flops = [r["_cum_flops"] for r in eval_rows]
+    eval_flops = [s * flops_per_step for s in eval_steps]
 
     return {
         "train_steps": train_steps,
