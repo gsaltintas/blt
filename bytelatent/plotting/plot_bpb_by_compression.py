@@ -13,11 +13,13 @@ Reads, for each run under /scratch/gsa/train/fineweb_data_optimal_143M_tok_{T1,T
 Different compression ratios pack a different number of raw bytes into the
 same token/step budget, so plotting against cumulative bytes consumed (rather
 than step) puts runs on equal footing in terms of how much raw text they've
-actually seen.
+actually seen. Cumulative FLOPs (from speed/FLOPS * speed/curr_iter_time,
+integrated over steps) normalizes by compute spent instead.
 
-Saves two figures to results/:
+Saves three figures to results/:
   - bpb_vs_step.pdf   (x-axis: training step)
   - bpb_vs_bytes.pdf  (x-axis: cumulative bytes consumed)
+  - bpb_vs_flops.pdf  (x-axis: cumulative FLOPs)
 
 Usage:
     python bytelatent/plotting/plot_bpb_by_compression.py
@@ -33,14 +35,17 @@ COMPRESSION_RATIOS = ["T1", "T2", "T4", "T6", "T8", "T12", "T18"]
 STEP_INTERVAL = 20_000
 TRAIN_FIELD = "bpb/interval_across_gpus"
 BYTES_FIELD = "n_bytes/interval_across_gpus"
+FLOPS_RATE_FIELD = "speed/FLOPS"
+ITER_TIME_FIELD = "speed/curr_iter_time"
 EVAL_TASK = "flores_plus_eng_Latn"
 EVAL_FIELD = "bits_per_byte,none"
 RESULTS_DIR = Path("results")
 
 
 def load_metrics(path: Path) -> list[dict]:
-    """Load metrics rows, sorted by step, each annotated with a running
-    cumulative byte count under the "_cum_bytes" key."""
+    """Load metrics rows, sorted by step, each annotated with running
+    cumulative totals under "_cum_bytes" and "_cum_flops"."""
+    required = {TRAIN_FIELD, BYTES_FIELD, FLOPS_RATE_FIELD, ITER_TIME_FIELD}
     rows = []
     with open(path) as f:
         for line in f:
@@ -51,14 +56,23 @@ def load_metrics(path: Path) -> list[dict]:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if "global_step" in row and TRAIN_FIELD in row and BYTES_FIELD in row:
+            if "global_step" in row and required.issubset(row):
                 rows.append(row)
     rows.sort(key=lambda r: r["global_step"])
 
     cum_bytes = 0.0
+    cum_flops = 0.0
+    prev_step = 0
     for row in rows:
         cum_bytes += row[BYTES_FIELD]
+        # FLOPS is an instantaneous rate (flops/sec); multiplying by the
+        # per-step time and the number of steps since the last log gives the
+        # FLOPs spent over that interval.
+        step_delta = row["global_step"] - prev_step
+        cum_flops += row[FLOPS_RATE_FIELD] * row[ITER_TIME_FIELD] * step_delta
+        prev_step = row["global_step"]
         row["_cum_bytes"] = cum_bytes
+        row["_cum_flops"] = cum_flops
     return rows
 
 
@@ -100,19 +114,24 @@ def collect_run_data(ratio: str) -> dict:
     train_rows = [nearest_row(rows, s) for s in checkpoint_steps]
     train_steps = [r["global_step"] for r in train_rows]
     train_bytes = [r["_cum_bytes"] for r in train_rows]
+    train_flops = [r["_cum_flops"] for r in train_rows]
     train_bpb = [r[TRAIN_FIELD] for r in train_rows]
 
     eval_bpb_by_step = load_eval_bpb_by_step(run_dir / "evals")
     eval_steps = [s for s in checkpoint_steps if s in eval_bpb_by_step]
     eval_bpb = [eval_bpb_by_step[s] for s in eval_steps]
-    eval_bytes = [nearest_row(rows, s)["_cum_bytes"] for s in eval_steps]
+    eval_rows = [nearest_row(rows, s) for s in eval_steps]
+    eval_bytes = [r["_cum_bytes"] for r in eval_rows]
+    eval_flops = [r["_cum_flops"] for r in eval_rows]
 
     return {
         "train_steps": train_steps,
         "train_bytes": train_bytes,
+        "train_flops": train_flops,
         "train_bpb": train_bpb,
         "eval_steps": eval_steps,
         "eval_bytes": eval_bytes,
+        "eval_flops": eval_flops,
         "eval_bpb": eval_bpb,
     }
 
@@ -165,6 +184,9 @@ def main():
     plot_figure(run_data, "steps", "Training step", RESULTS_DIR / "bpb_vs_step.pdf")
     plot_figure(
         run_data, "bytes", "Cumulative bytes consumed", RESULTS_DIR / "bpb_vs_bytes.pdf"
+    )
+    plot_figure(
+        run_data, "flops", "Cumulative FLOPs", RESULTS_DIR / "bpb_vs_flops.pdf"
     )
 
 
