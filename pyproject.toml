@@ -6,11 +6,13 @@ readme = "README.md"
 requires-python = "==3.12.*"
 dependencies = [
     "altair>=5.5.0",
+    "datasets>=3.0.0",
     "datatrove>=0.5.0",
     "fsspec>=2024.6.1",
     "huggingface-hub==0.30.*",
     "jinja2>=3.1.6",
-    "lm-eval>=0.4.8",
+    "lm-eval@git+https://github.com/r-three/lm-evaluation-harness@multilingual-tiny-benchmarks",
+    # "lm-eval>=0.4.8",
     "luigi>=3.6.0",
     "numpy>=2.1.2",
     "omegaconf>=2.3.0",
@@ -23,6 +25,8 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "submitit>=1.5.2",
     "tiktoken>=0.8.0",
+    "trackio>=0.2.7",
+    "transformers>=4.53.3",
     "typer>=0.15.3",
     "viztracer>=1.0.3",
     "wandb>=0.19.10",
@@ -37,6 +41,8 @@ url = "https://download.pytorch.org/whl/nightly/cu121"
 [tool.uv.sources]
 torch = {index = "torch-nightly-cu121"}
 xformers = { git = "https://github.com/facebookresearch/xformers.git", rev = "de742ec3d64bd83b1184cc043e541f15d270c148" }
+#xformers = {index = "torch-nightly-cu121"}
+#xformers = { git = "https://github.com/facebookresearch/xformers.git", tag = "v0.0.29.post1" }
 
 [dependency-groups]
 pre_build = [
