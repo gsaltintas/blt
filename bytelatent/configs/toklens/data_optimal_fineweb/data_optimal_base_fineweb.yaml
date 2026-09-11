@@ -6,7 +6,7 @@ name: "data_optimal_143M_tok_T6"  # change T value per run: T2, T3, T4, T5, T6, 
 steps: 549_317   # upper bound; monitor BPB for convergence
 probe_freq: null
 seed: 777
-# grad_acc_steps: 4
+grad_acc_steps: 8
 
 optim:
   lr: 4e-4
@@ -91,6 +91,7 @@ data:
     fineweb_edu_10bt: 1.0
     dclm_baseline_1.0_40bt: 0
   batch_size: 2         # increase from 2; 50M model can handle it
+  # batch_size: 32
   prefetch_size: 256
   seq_len: 4096
   load_async: true
@@ -110,7 +111,7 @@ checkpoint:
   path: 
   dump:
     every: 10_000
-    keep: 3
+    keep: -1
   # eval:
   #   every: 2500   # frequent enough to track BPB convergence curve
   #   keep: -1      # keep all — you need the full BPB curve per run
@@ -120,5 +121,12 @@ logging:
   wandb:
     project: BLT-DataOptimal-FineWeb
 
-eval_on_gpus: 8
-eval: null
+eval_on_gpus: 1
+eval: 
+  harness:
+    tasks:
+      - flores_plus_eng_Latn
+      - hellaswag
+      - arc_easy
+      - piqa
+

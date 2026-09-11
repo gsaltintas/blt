@@ -1,5 +1,7 @@
 ## first download the data
-# hf download toklens/fw_edu_tokenizer_training_data --local-dir /scratch/gsa/data/toklens/fineweb_edu_12gb --repo-type dataset
+
+# normally 8 but we want to run on 2 gpus
+grad_acc_steps: 4
 
 data:
   root_dir: /scratch/gsa/data/toklens/
@@ -8,16 +10,18 @@ data:
     fineweb_edu_10bt: 0.0
     # fineweb_edu_12gb: 1.
     fineweb_edu_12gb_single: 1.
+  batch_size: 32
 
 
 logging:
   trackio:
-    project: BLT-DataOptimal-FineWeb-12GB-Fixed
-    # space_id: toklens/BLT-DataOptimal-FineWeb-12GB
-    entity: toklens
+    # project: BLT-DataOptimal-FineWeb-12GB-Fixed
+    # # space_id: toklens/BLT-DataOptimal-FineWeb-12GB
+    # entity: toklens
 
 
 checkpoint:
   dump:
     every: 10000
-    keep: 3
+    keep: -1
+
